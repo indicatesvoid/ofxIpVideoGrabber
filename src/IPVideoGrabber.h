@@ -46,7 +46,7 @@ public:
     void exit(ofEventArgs& a);
 
     void update() override;
-    
+
     void update(ofEventArgs& a);
 
     void connect() ;
@@ -67,7 +67,7 @@ public:
 	const ofPixels& getPixels() const override;
 
     std::shared_ptr<ofImage> getFrame();
-    
+
     // ofBaseHasTexture
 	ofTexture& getTexture() override;
 	const ofTexture& getTexture() const override;
@@ -83,36 +83,36 @@ public:
 	void draw(float x, float y, float w, float h) const override;
 	void draw(const ofPoint& point) const override;
 	void draw(const ofRectangle& rect) const override;
-    
+
     void setAnchorPercent(float xPct, float yPct) override;
     void setAnchorPoint(float x, float y) override;
 	void resetAnchor() override;
-    
+
     float getWidth() const override;
     float getHeight() const override;
-    
+
     uint64_t getNumFramesReceived() const;
     uint64_t getNumBytesReceived() const;
 
     float getFrameRate() const;
     float getBitRate() const;
-    
+
     std::string getCameraName() const;
     void setCameraName(const std::string& cameraName);
-    
+
     // set video URI
     void setURI(const std::string& uri);
     void setURI(const Poco::URI& uri);
 
     std::string getURI() const;
     Poco::URI getPocoURI() const;
-    
+
     // poco uri access
     std::string getHost() const;
     std::string getQuery() const;
     uint16_t getPort() const;
     std::string getFragment() const;
-    
+
     // cookies
     void setCookie(const std::string& key, const std::string& value);
     void eraseCookie(const std::string& key);
@@ -121,10 +121,10 @@ public:
     // basic authentication
     void setUsername(const std::string& username);
     void setPassword(const std::string& password);
-    
+
     std::string getUsername() const;
     std::string getPassword() const;
-    
+
     // proxy server
     void setUseProxy(bool useProxy);
     void setProxyUsername(const std::string& username);
@@ -137,13 +137,13 @@ public:
     std::string getProxyPassword() const;
     std::string getProxyHost() const;
     Poco::UInt16 getProxyPort() const;
-    
+
     Poco::Net::HTTPClientSession& getSession();
-    
+
     bool isConnected() const;
-    
+
     bool hasConnectionFailed() const;
-    
+
     void setReconnectTimeout(uint64_t ms);
     uint64_t getReconnectTimeout() const;
     bool getNeedsReconnect() const;
@@ -158,13 +158,13 @@ public:
 
     void setDefaultBoundaryMarker(const std::string& boundarMarker);
     std::string getDefaultBoundaryMarker() const;
-        
+
     ofEvent<ofResizeEventArgs> 	videoResized;
 
-protected:    
+protected:
     void threadedFunction();// override;// connect to server
     void imageResized(int width, int height);
-    
+
 private:
     std::thread _thread;
 
@@ -175,21 +175,21 @@ private:
     std::atomic<bool> _isConnected;
 
     std::string defaultBoundaryMarker_a;
-    
+
     std::string cameraName_a;
 
     // credentials
     std::string username_a;
     std::string password_a;
-    
+
     bool bUseProxy_a;
     std::string proxyUsername_a;
     std::string proxyPassword_a;
     std::string proxyHost_a;
     uint16_t proxyPort_a;
-    
+
     //ofPixels pix;
-    
+
     int ci; // current image index
     ofPixels image_a[2]; // image double buffer.  this flips
     std::shared_ptr<ofImage> img;
@@ -197,20 +197,20 @@ private:
 
     bool isNewFrameLoaded;       // is there a new frame ready to be uploaded to glspace
     bool isBackBufferReady_a;
-    
+
     uint64_t connectTime_a; // init time
     uint64_t elapsedTime_a;
-    
+
     uint64_t nBytes_a;
     uint64_t nFrames_a;
-    
+
     float currentBitRate;
     float currentFrameRate;
-    
+
     float minBitrate; // the minimum acceptable bitrate before reconnecting
     uint64_t lastValidBitrateTime; // the time of the last valid bitrate (will wait for reconnectTime time)
     uint64_t reconnectTimeout; // ms the amount ot time we will wait to reach the min bitrate
-    
+
     uint64_t autoRetryDelay_a; // retry delay in ms
     uint64_t nextAutoRetry_a;
     bool connectionFailure; // max reconnects exceeded, is dead.
@@ -221,7 +221,7 @@ private:
 
     uint64_t sessionTimeout; // ms
     Poco::URI uri_a;
-    
+
     Poco::Net::NameValueCollection cookies;
 
     mutable std::mutex mutex;

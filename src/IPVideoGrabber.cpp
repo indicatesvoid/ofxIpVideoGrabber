@@ -79,9 +79,9 @@ IPVideoGrabber::IPVideoGrabber():
     nextAutoRetry_a(0),
     connectionFailure(false),
     needsReconnect_a(false),
-    autoReconnect(true),
+    autoReconnect(false),
     reconnectCount_a(0),
-    maxReconnects(20),
+    maxReconnects(0),
     sessionTimeout(2000)
 {
     img->allocate(1, 1, OF_IMAGE_COLOR); // allocate something so it won't throw errors
@@ -131,9 +131,9 @@ void IPVideoGrabber::update()
     isNewFrameLoaded = false;
 
     uint64_t now = ofGetSystemTime();
-    
+
     std::string cName = getCameraName(); // consequence of scoped locking
-    
+
     if (_isConnected)
     {
         ///////////////////////////////
@@ -144,41 +144,41 @@ void IPVideoGrabber::update()
 
         elapsedTime_a = (connectTime_a == 0) ? 0 : (now - connectTime_a);
 
-        if (isBackBufferReady_a) 
+        if (isBackBufferReady_a)
         {
             ci^=1; // swap buffers (ci^1) was just filled in the thread
-            
+
             int newW = image_a[ci].getWidth();    // new buffer
             int newH = image_a[ci].getHeight();   // new buffer
             int oldW = image_a[ci^1].getWidth();  // old buffer
             int oldH = image_a[ci^1].getHeight(); // old buffer
-            
+
             // send out an alert to anyone who cares.
             // on occasion an mjpeg image stream size can be changed on the fly
             // without our knowledge.  so tell people about it.
-            
+
             // remove lock for a moment to send out the message
             // we must remove the lock, so any calls made to THIS object
             // within the callback will be able to get their locks via
             // synchronized methods.
             mutex.unlock();
-            
+
             if (newW != oldW || newH != oldH) imageResized(newW, newH);
-            
+
             // lock it again.
             mutex.lock();
-            
+
             // get a pixel ref for the image that was just loaded in the thread
-            
+
             img = std::make_shared<ofImage>();
             img->setFromPixels(image_a[ci]);
-            
+
             isNewFrameLoaded = true; // we only set this to true.  this setup is analogous to
                                      // has new pixels in ofVideo
-            
+
             isBackBufferReady_a = false;
         }
-        
+
         if (elapsedTime_a > 0)
         {
             currentFrameRate = ( float(nFrames_a) )       / (elapsedTime_a / (1000.0f)); // frames per second
@@ -189,7 +189,7 @@ void IPVideoGrabber::update()
             currentFrameRate = 0;
             currentBitRate   = 0;
         }
-        
+
         if (currentBitRate > minBitrate)
         {
             lastValidBitrateTime = elapsedTime_a;
@@ -206,14 +206,14 @@ void IPVideoGrabber::update()
                 // slowed below min bitrate, waiting to see if we are too low for long enought to merit a reconnect
             }
         }
-    
+
         ///////////////////////////////
         mutex.unlock(); // UNLOCKING //
         ///////////////////////////////
     }
     else
     {
-        
+
         if (getNeedsReconnect())
         {
             if (maxReconnects < 0 || getReconnectCount() < maxReconnects)
@@ -240,7 +240,7 @@ void IPVideoGrabber::update()
             }
         }
     }
-    
+
 }
 
 
@@ -251,9 +251,9 @@ void IPVideoGrabber::connect()
         ofLogWarning("IPVideoGrabber::connect")  << "[" << getCameraName() << "]: Connecting!";
 
         // start the thread.
-        
+
         lastValidBitrateTime = 0;
-        
+
         currentBitRate   = 0.0;
         currentFrameRate = 0.0;
 
@@ -427,25 +427,25 @@ void IPVideoGrabber::threadedFunction()
     ofBuffer buffer;
 
     Poco::Net::HTTPClientSession session;
-    
+
     ///////////////////////////
 	mutex.lock(); // LOCKING //
     ///////////////////////////
-        
+
     connectTime_a = ofGetSystemTime(); // start time
     nextAutoRetry_a = 0;
-    
+
     elapsedTime_a = 0;
     nBytes_a      = 0;
     nFrames_a     = 0;
-    
+
     needsReconnect_a = false;
     reconnectCount_a++;
 
     ///////////////////////
     // configure session //
     ///////////////////////
-    
+
     // configure proxy
 
     if (bUseProxy_a)
@@ -462,15 +462,15 @@ void IPVideoGrabber::threadedFunction()
             ofLogError("IPVideoGrabber") << "Attempted to use web proxy, but proxy host was empty.  Continuing without proxy.";
         }
     }
-        
+
     // configure destination
     session.setHost(uri_a.getHost());
     session.setPort(uri_a.getPort());
-    
+
     // basic session info
     session.setKeepAlive(true);
     session.setTimeout(Poco::Timespan(sessionTimeout / 1000,0)); // 20 sececond timeout
-    
+
     // add trailing slash if nothing is there
     std::string path(uri_a.getPathAndQuery());
     if (path.empty()) path = "/";
@@ -487,14 +487,14 @@ void IPVideoGrabber::threadedFunction()
         credentials.setPassword(password_a);
         credentials.authenticate(request);
     }
-    
+
     // send cookies if needed (sometimes, we send our authentication as cookies)
     if (!cookies.empty()) request.setCookies(cookies);
 
     ///////////////////////////////
 	mutex.unlock(); // UNLOCKING //
     ///////////////////////////////
-    
+
     /////////////////////////
     // start communicating //
     /////////////////////////
@@ -506,58 +506,58 @@ void IPVideoGrabber::threadedFunction()
 
         // sendn the http request.
         std::ostream& requestOutputStream = session.sendRequest(request);
-        
+
         // check the return stream for success.
         if (requestOutputStream.bad() || requestOutputStream.fail())
         {
             throw Poco::Exception("Error communicating with server during sendRequest.");
         }
-        
+
         // prepare to receive the response
         std::istream& responseInputStream = session.receiveResponse(response); // invalidates requestOutputStream
-        
+
         // get and test the status code
         Poco::Net::HTTPResponse::HTTPStatus status = response.getStatus();
-        
+
         if (status != Poco::Net::HTTPResponse::HTTP_OK)
         {
             throw Poco::Exception("Invalid HTTP Reponse : " + response.getReasonForStatus(status), status);
         }
-        
+
         Poco::Net::NameValueCollection nvc;
         std::string contentType;
         std::string boundaryMarker;
         Poco::Net::HTTPResponse::splitParameters(response.getContentType(), contentType, nvc);
-    
+
         boundaryMarker = nvc.get("boundary",getDefaultBoundaryMarker()); // we call the getter here b/c not in critical section
-        
+
         if (Poco::UTF8::icompare(std::string("--"), boundaryMarker.substr(0,2)) != 0)
         {
             boundaryMarker = "--" + boundaryMarker; // prepend the marker
         }
-        
+
         ContentStreamMode mode = MODE_HEADER;
-        
+
         std::size_t c = 0;
-        
+
         bool resetBuffer = false;
-        
+
         // mjpeg params
         // int contentLength = 0;
         std::string boundaryType;
-        
+
         while (_isConnected)
         {
             if (!responseInputStream.fail() && !responseInputStream.bad())
             {
-                
+
                 resetBuffer = false;
                 responseInputStream.get(cBuf[c]); // put a byte in the buffer
-                
+
                 mutex.lock();
                 nBytes_a++; // count bytes
                 mutex.unlock();
-                
+
                 if (c > 0)
                 {
                     if (mode == MODE_HEADER && cBuf[c-1] == '\r' && cBuf[c] == '\n')
@@ -566,14 +566,14 @@ void IPVideoGrabber::threadedFunction()
                         {
                             cBuf[c-1] = '\0'; // NULL terminator
                             std::string line(cBuf.begin()); // make a string object
-                            
+
                             std::vector<std::string> keyValue = ofSplitString(line,":", true); // split it (try)
                             if (keyValue.size() > 1)
                             { // a param!
-                                
+
                                 std::string& key   = keyValue[0]; // reference to trimmed key for better readability
                                 std::string& value = keyValue[1]; // reference to trimmed val for better readability
-                                
+
                                 if (Poco::UTF8::icompare(std::string("content-length"), key) == 0)
                                 {
                                     // contentLength = ofToInt(value);
@@ -605,9 +605,9 @@ void IPVideoGrabber::threadedFunction()
                         {
                             // just waiting for at least two bytes
                         }
-                        
+
                         resetBuffer = true; // reset upon new line
-                        
+
                     }
                     else if (cBuf[c-1] == JFF)
                     {
@@ -621,7 +621,7 @@ void IPVideoGrabber::threadedFunction()
 
                             if (c >= MIN_JPEG_SIZE)
                             { // some cameras send 2+ EOIs in a row, with no valid bytes in between
-    
+
                                 ///////////////////////////////
                                 mutex.lock();     // LOCKING //
                                 ///////////////////////////////
@@ -641,11 +641,11 @@ void IPVideoGrabber::threadedFunction()
                                 {
                                     ofLogError("IPVideoGrabber") << "ofImage could not load the curent buffer, continuing.";
                                 }
-                                
+
                                 ///////////////////////////////
                                 mutex.unlock(); // UNLOCKING //
                                 ///////////////////////////////
-                                    
+
                             }
                             else
                             {
@@ -668,14 +668,14 @@ void IPVideoGrabber::threadedFunction()
                 else
                 {
                 }
-                
+
                 // check for buffer overflow
                 if (c >= BUF_LEN)
                 {
                     resetBuffer = true;
                     ofLogError("IPVideoGrabber") << "[" + getCameraName() +"]: buffer overflow, resetting stream.";
                 }
-                
+
                 // has anyone requested a buffer reset?
                 if (resetBuffer)
                 {
@@ -685,13 +685,14 @@ void IPVideoGrabber::threadedFunction()
                 {
                     c++;
                 }
-                
+
             }
             else
             { // end stream check
+                waitForDisconnect();
                 throw Poco::Exception("ResponseInputStream failed or went bad -- it was probably interrupted.");
             }
-            
+
         } // end while
 
     }
@@ -862,7 +863,7 @@ void IPVideoGrabber::draw(const ofPoint& point) const
 
 void IPVideoGrabber::draw(const ofRectangle & rect) const
 {
-    draw(rect.x, rect.y, rect.width, rect.height); 
+    draw(rect.x, rect.y, rect.width, rect.height);
 }
 
 
@@ -895,7 +896,7 @@ float IPVideoGrabber::getFrameRate() const
         return 0.0f;
     }
 }
-    
+
 
 float IPVideoGrabber::getBitRate() const
 {
