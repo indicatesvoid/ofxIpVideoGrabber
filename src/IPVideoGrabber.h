@@ -31,7 +31,7 @@
 #include "Poco/Net/HTTPClientSession.h"
 #include "Poco/Net/NameValueCollection.h"
 #include "ofBaseTypes.h"
-
+#include "ofMain.h"
 
 namespace ofx {
 namespace Video {
@@ -81,7 +81,7 @@ public:
     // ofBaseDraws
     void draw(float x, float y) const override;
 	void draw(float x, float y, float w, float h) const override;
-	void draw(const ofPoint& point) const override;
+	void draw(const ofPoint& point) const;
 	void draw(const ofRectangle& rect) const override;
 
     void setAnchorPercent(float xPct, float yPct) override;
